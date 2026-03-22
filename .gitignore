@@ -1,0 +1,8 @@
+.claude/
+.vscode/
+PikminBloomAssets/
+data/
+utils/metrics.js
+node_modules/
+pikmin-map/
+scrape-images.js
