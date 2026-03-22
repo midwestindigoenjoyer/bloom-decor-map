@@ -26,31 +26,39 @@ const OVERPASS_SERVERS = [
   'https://overpass.kumi.systems/api/interpreter'
 ];
 
-async function queryOverpass(query, timeoutMs = 45000) {
+async function queryOverpass(query, timeoutMs = 45000, externalSignal = null) {
   let lastError;
   for (const server of OVERPASS_SERVERS) {
+    if (externalSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const onCancel = () => ctrl.abort();
+    externalSignal?.addEventListener('abort', onCancel, { once: true });
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(server, {
         method: 'POST',
         body: query,
         headers: { 'Content-Type': 'text/plain' },
-        signal: controller.signal
+        signal: ctrl.signal
       });
       clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', onCancel);
       if (!response.ok) throw new Error(`Overpass error: HTTP ${response.status}`);
       const data = await response.json();
       return data.elements || [];
     } catch (err) {
+      clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', onCancel);
+      if (externalSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
       lastError = err;
     }
   }
-  const err = lastError?.name === 'AbortError'
-    ? new Error('Request timed out.')
-    : lastError;
-  if (lastError?.name === 'AbortError') err.isTimeout = true;
-  throw err;
+  if (lastError?.name === 'AbortError') {
+    const e = new Error('Request timed out.');
+    e.isTimeout = true;
+    throw e;
+  }
+  throw lastError;
 }
 
 // ===========================
@@ -94,8 +102,7 @@ let radiusCircle = null;
 let activeTab = 'search';
 let autocompleteTimer = null;
 let autocompleteController = null;  // AbortController for in-flight Nominatim requests
-let pendingRetryFn = null;          // Stored callback for the timeout modal "Try Again"
-let _suppressHideLoading = false;   // Prevents finally{hideLoading()} from closing the timeout modal
+const queryTracker = new Map(); // id -> { label, status: 'loading'|'success'|'error', controller, retryFn }
 let activeBrowseCategories = new Set();  // multi-select
 let browseResultsData = {};  // category -> results array
 let lastSearchLat = null;
@@ -114,8 +121,8 @@ const resultsLocation = document.getElementById('results-location');
 const resultsCount = document.getElementById('results-count');
 const emptyState = document.getElementById('empty-state');
 const loading = document.getElementById('loading');
-const loadingNormal = document.getElementById('loading-normal');
-const loadingTimeout = document.getElementById('loading-timeout');
+const loadingTitle = document.getElementById('loading-title');
+const loadingQueryList = document.getElementById('loading-query-list');
 const autocompleteList = document.getElementById('autocomplete-list');
 const browseGrid = document.getElementById('browse-grid');
 const browseResults = document.getElementById('browse-results');
@@ -240,15 +247,8 @@ function bindEvents() {
   // Pull-up tab — shown when sidebar is off-screen
   if (sheetTab) sheetTab.addEventListener('click', () => snapSheet('mid'));
 
-  // Timeout modal
-  document.getElementById('loading-retry-btn').addEventListener('click', () => {
-    hideLoading();
-    if (pendingRetryFn) { const fn = pendingRetryFn; pendingRetryFn = null; fn(); }
-  });
-  document.getElementById('loading-cancel-btn').addEventListener('click', () => {
-    hideLoading();
-    pendingRetryFn = null;
-  });
+  // Query loader close button
+  document.getElementById('loading-close-btn').addEventListener('click', closeQueryLoader);
 
   // Browse clear / refresh (sidebar on desktop, map overlay on mobile)
   browseClearBtn.addEventListener('click', clearBrowseAll);
@@ -658,7 +658,10 @@ function clearBrowseAll() {
 }
 
 async function fetchBrowseDecor(category) {
-  showLoading();
+  const controller = new AbortController();
+  const decor = DECOR_MAPPINGS.find(d => d.name === category);
+  const label = (decor?.icon ? decor.icon + ' ' : '') + category;
+  trackQuery(category, label, controller, () => fetchBrowseDecor(category));
 
   try {
     const bounds = map.getBounds();
@@ -668,8 +671,7 @@ async function fetchBrowseDecor(category) {
     const query = buildOverpassBboxQuery(south, west, north, east, category);
     if (!query) throw new Error('Unknown decor category: ' + category);
 
-    const elements = await queryOverpass(query, 30000);
-    const decor = DECOR_MAPPINGS.find(d => d.name === category);
+    const elements = await queryOverpass(query, 30000, controller.signal);
     const bboxCLat = (south + north) / 2;
     const bboxCLon = (west + east) / 2;
 
@@ -692,47 +694,21 @@ async function fetchBrowseDecor(category) {
 
     browseResultsData[category] = results;
     rebuildBrowseView();
+    resolveQuery(category, true);
   } catch (error) {
-    if (error.isTimeout) {
-      showTimeoutError(() => fetchBrowseDecor(category));
-    } else {
-      // On non-timeout error, deselect the category and show inline error
-      activeBrowseCategories.delete(category);
-      document.querySelector(`.browse-card[data-category="${CSS.escape(category)}"]`)?.classList.remove('active');
-      delete browseResultsData[category];
-      setBrowseActionsVisible(activeBrowseCategories.size > 0);
-
-      browseResultsLabel.textContent = category;
-      browseResultsCount.textContent = '';
-      browseResultsContent.innerHTML = `
-        <div class="no-results">
-          <div class="no-results-icon">⚠️</div>
-          <p>${escapeHtml(error.message)}</p>
-          <button class="retry-btn" onclick="retryBrowseCategory('${escapeHtml(category)}')">Try Again</button>
-        </div>
-      `;
-      browseResults.classList.remove('hidden');
-    }
-  } finally {
-    hideLoading();
+    if (error.name === 'AbortError') return;
+    resolveQuery(category, false);
   }
 }
 
-function retryBrowseCategory(category) {
-  const card = document.querySelector(`.browse-card[data-category="${CSS.escape(category)}"]`);
-  if (card) {
-    activeBrowseCategories.add(category);
-    card.classList.add('active');
-    setBrowseActionsVisible(true);
-  }
-  fetchBrowseDecor(category);
-}
 
 async function refreshBrowseViewport() {
   const decorNames = Array.from(activeBrowseCategories);
   if (decorNames.length === 0) return;
 
-  showLoading();
+  const controller = new AbortController();
+  const label = `Refresh (${decorNames.length} categor${decorNames.length === 1 ? 'y' : 'ies'})`;
+  trackQuery('__refresh__', label, controller, () => refreshBrowseViewport());
 
   try {
     const bounds = map.getBounds();
@@ -742,7 +718,7 @@ async function refreshBrowseViewport() {
     const query = buildOverpassBboxQueryMulti(south, west, north, east, decorNames);
     if (!query) return;
 
-    const elements = await queryOverpass(query, 30000);
+    const elements = await queryOverpass(query, 30000, controller.signal);
 
     const decorByName = {};
     DECOR_MAPPINGS.filter(d => decorNames.includes(d.name)).forEach(d => { decorByName[d.name] = d; });
@@ -781,14 +757,10 @@ async function refreshBrowseViewport() {
       browseResultsData[name] = results;
     }
     rebuildBrowseView();
+    resolveQuery('__refresh__', true);
   } catch (error) {
-    if (error.isTimeout) {
-      showTimeoutError(() => refreshBrowseViewport());
-    } else {
-      console.error('Viewport refresh failed:', error.message);
-    }
-  } finally {
-    hideLoading();
+    if (error.name === 'AbortError') return;
+    resolveQuery('__refresh__', false);
   }
 }
 
@@ -884,10 +856,12 @@ async function fetchDecor(lat, lon) {
   showSearchLoading();
   lastSearchLat = lat;
   lastSearchLon = lon;
+  const controller = new AbortController();
+  trackQuery('__search__', '📍 Searching location...', controller, () => fetchDecor(lat, lon));
 
   try {
     const query = buildOverpassQuery(lat, lon, SEARCH_RADIUS);
-    const elements = await queryOverpass(query, 45000);
+    const elements = await queryOverpass(query, 45000, controller.signal);
 
     const decorResults = [];
     const seen = new Set();
@@ -932,9 +906,12 @@ async function fetchDecor(lat, lon) {
       displayResults({ results: decorResults, total: decorResults.length });
       addDecorMarkers(decorResults);
     }
+    resolveQuery('__search__', true);
   } catch (error) {
+    if (error.name === 'AbortError') { hideLoading(); return; }
+    resolveQuery('__search__', false);
     if (error.isTimeout) {
-      showTimeoutError(() => fetchDecor(lat, lon));
+      showError('Request timed out. Try zooming in for a smaller area.', () => fetchDecor(lat, lon));
     } else {
       showError(error.message || 'Failed to fetch decor.', () => fetchDecor(lat, lon));
     }
@@ -1331,44 +1308,99 @@ function panToLocation(lat, lon) {
 
 function showLoading() {
   isLoading = true;
-  loading.classList.remove('hidden');
-  // Freeze map interactions
   map.dragging.disable();
   map.scrollWheelZoom.disable();
   map.doubleClickZoom.disable();
   map.touchZoom.disable();
-  // Disable search controls so the user can't fire a new query mid-flight
   addressInput.disabled = true;
   searchBtn.disabled = true;
   locateBtn.disabled = true;
+  document.getElementById('map-browse-refresh-btn').disabled = true;
+  document.getElementById('map-browse-clear-btn').disabled = true;
 }
 
 function hideLoading() {
-  // When a timeout modal is showing, the finally{} block calls hideLoading() but
-  // we don't want to close the modal — just clear the suppress flag and bail out.
-  if (_suppressHideLoading) { _suppressHideLoading = false; return; }
   isLoading = false;
-  loading.classList.add('hidden');
-  // Reset timeout modal state for next time
-  loadingNormal.style.display = '';
-  loadingTimeout.style.display = 'none';
-  // Restore map interactions
   map.dragging.enable();
   map.scrollWheelZoom.enable();
   map.doubleClickZoom.enable();
   map.touchZoom.enable();
-  // Re-enable search controls
   addressInput.disabled = false;
   searchBtn.disabled = false;
   locateBtn.disabled = false;
+  document.getElementById('map-browse-refresh-btn').disabled = false;
+  document.getElementById('map-browse-clear-btn').disabled = false;
 }
 
-function showTimeoutError(retryFn) {
-  _suppressHideLoading = true;  // block the coming finally{hideLoading()} call
-  pendingRetryFn = retryFn;
-  loadingNormal.style.display = 'none';
-  loadingTimeout.style.display = 'flex';
-  // loading overlay stays visible — user sees the error state
+// ===========================
+// Multi-query progress tracker
+// ===========================
+function trackQuery(id, label, controller, retryFn) {
+  const existing = queryTracker.get(id);
+  if (existing?.status === 'loading') existing.controller?.abort();
+  queryTracker.set(id, { label, status: 'loading', controller, retryFn });
+  renderQueryLoader();
+}
+
+function resolveQuery(id, success) {
+  if (!queryTracker.has(id)) return;
+  const q = queryTracker.get(id);
+  q.status = success ? 'success' : 'error';
+  q.controller = null;
+  renderQueryLoader();
+  if ([...queryTracker.values()].every(q => q.status === 'success')) {
+    setTimeout(() => { queryTracker.clear(); loading.classList.add('hidden'); }, 700);
+  }
+}
+
+function closeQueryLoader() {
+  for (const [id, q] of queryTracker) {
+    if (q.status === 'loading') {
+      q.controller?.abort();
+      if (activeBrowseCategories.has(id)) {
+        activeBrowseCategories.delete(id);
+        document.querySelector(`.browse-card[data-category="${CSS.escape(id)}"]`)?.classList.remove('active');
+        delete browseResultsData[id];
+      }
+    }
+  }
+  queryTracker.clear();
+  setBrowseActionsVisible(activeBrowseCategories.size > 0);
+  rebuildBrowseView();
+  loading.classList.add('hidden');
+}
+
+function retryTrackedQuery(id) {
+  const q = queryTracker.get(id);
+  if (!q?.retryFn) return;
+  queryTracker.delete(id);
+  q.retryFn();
+}
+
+function renderQueryLoader() {
+  const entries = [...queryTracker.entries()];
+  if (entries.length === 0) { loading.classList.add('hidden'); return; }
+  loading.classList.remove('hidden');
+  const anyLoading = entries.some(([, q]) => q.status === 'loading');
+  loadingTitle.textContent = anyLoading ? 'Finding decor...' : 'Done!';
+  loadingQueryList.innerHTML = entries.map(([id, q]) => {
+    let statusHtml;
+    if (q.status === 'loading') {
+      statusHtml = '<div class="qtrack-spinner"></div>';
+    } else if (q.status === 'success') {
+      statusHtml = `<svg class="qtrack-icon qtrack-success" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    } else {
+      statusHtml = `<svg class="qtrack-icon qtrack-error" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+    }
+    const retryBtn = q.status === 'error'
+      ? `<button class="qtrack-retry" onclick="retryTrackedQuery('${escapeHtml(id)}')">Retry</button>`
+      : '';
+    return `<li class="qtrack-item qtrack-${q.status}">
+      <span class="qtrack-status">${statusHtml}</span>
+      <span class="qtrack-label">${escapeHtml(q.label)}</span>
+      ${retryBtn}
+    </li>`;
+  }).join('');
 }
 
 function formatDistance(meters) {
@@ -1417,8 +1449,9 @@ function escapeHtml(text) {
 
 window.panToLocation = panToLocation;
 window.fetchBrowseDecor = fetchBrowseDecor;
-window.retryBrowseCategory = retryBrowseCategory;
 window.refreshBrowseViewport = refreshBrowseViewport;
+window.retryTrackedQuery = retryTrackedQuery;
+window.closeQueryLoader = closeQueryLoader;
 
 // Show search loading: clear old results, show grayed badge
 function showSearchLoading() {

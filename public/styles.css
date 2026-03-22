@@ -415,9 +415,9 @@ body {
   transform: translate(-50%, -100%);
 }
 
-/* Browse Action Buttons (Refresh + Clear All) */
+/* Browse Action Buttons — hidden; buttons live on the map overlay instead */
 .browse-actions {
-  display: flex;
+  display: none;
   gap: 8px;
   margin-top: 12px;
 }
@@ -730,23 +730,23 @@ body {
   margin-bottom: 12px;
 }
 
-/* Retry Button */
+/* Generic retry button (used in search error states) */
 .retry-btn {
-  padding: 10px 24px;
+  margin-top: 12px;
+  padding: 8px 20px;
+  background: var(--primary);
   border: none;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease;
 }
 
 .retry-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(255, 107, 157, 0.4);
+  background: var(--primary-dark);
 }
 
 /* Count Tooltip — dropdown with emoji grid */
@@ -863,7 +863,7 @@ body {
 }
 
 /* ===========================
-   Loading Overlay
+   Multi-query Progress Loader
    =========================== */
 .loading {
   position: fixed;
@@ -871,80 +871,125 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
   background: var(--bg-sidebar);
-  padding: 24px 40px;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  min-width: 260px;
+  max-width: 340px;
+  width: calc(100vw - 48px);
+  overflow: hidden;
+  pointer-events: all;
 }
 
 .loading.hidden {
   display: none;
 }
 
-.loading-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid rgba(255, 107, 157, 0.2);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.loading span {
-  font-weight: 500;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-/* #loading-normal uses display:contents so its children participate directly
-   in .loading's flex layout, unchanged from the original single-wrapper design */
-#loading-normal {
-  display: contents;
-}
-
-#loading-timeout {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-}
-
-.loading-timeout-icon { font-size: 36px; }
-
-.loading-timeout-msg {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.loading-timeout-btns {
+.loading-header {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.loading-cancel-btn {
-  padding: 10px 24px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: inherit;
+.loading-title {
   font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  color: var(--text-primary);
 }
 
-.loading-cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+.loading-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.loading-close-btn:hover {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff6b6b;
+}
+
+.loading-query-list {
+  list-style: none;
+  padding: 8px 0;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.qtrack-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.qtrack-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.qtrack-label {
+  flex: 1;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qtrack-item.qtrack-success .qtrack-label {
+  color: var(--text-secondary);
+}
+
+.qtrack-icon.qtrack-success {
+  color: #4ecdc4;
+}
+
+.qtrack-icon.qtrack-error {
+  color: #ff6b6b;
+}
+
+.qtrack-retry {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 3px 10px;
+  border-radius: 5px;
+  background: rgba(255, 107, 157, 0.15);
+  border: 1px solid rgba(255, 107, 157, 0.3);
+  color: var(--primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.qtrack-retry:hover {
+  background: rgba(255, 107, 157, 0.28);
+}
+
+.qtrack-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
 }
 
 /* ===========================
@@ -1158,9 +1203,76 @@ body {
   display: none;
 }
 
-/* Map-overlay browse buttons — desktop: hidden; mobile: float top-right */
+/* Map-overlay browse buttons — float on map, all screen sizes */
 .map-browse-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 500;
+}
+
+.map-browse-actions.hidden {
   display: none;
+}
+
+.map-browse-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(22, 33, 62, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.map-browse-btn:hover {
+  background: rgba(22, 33, 62, 0.85);
+  color: white;
+}
+
+.map-browse-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.map-browse-btn[data-tooltip] {
+  position: relative;
+}
+
+.map-browse-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.map-browse-btn[data-tooltip]:hover::after {
+  opacity: 1;
 }
 
 /* ===========================
@@ -1268,46 +1380,15 @@ body {
     display: none !important;
   }
 
-  /* Hide the sidebar's browse action buttons — they live on the map on mobile */
-  .browse-actions {
-    display: none !important;
-  }
-
-  /* Floating browse action buttons on the map */
-  .map-browse-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    z-index: 500;
-  }
-
-  .map-browse-actions.hidden {
-    display: none;
-  }
-
-  .map-browse-btn {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    background: rgba(22, 33, 62, 0.62);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    color: rgba(255, 255, 255, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    transition: background 0.15s ease, color 0.15s ease;
-  }
-
   .map-browse-btn:active {
     background: rgba(22, 33, 62, 0.85);
     color: white;
+  }
+
+  .loading {
+    top: auto;
+    bottom: 80px;
+    transform: translateX(-50%);
   }
 }
 
