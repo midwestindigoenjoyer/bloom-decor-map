@@ -1151,9 +1151,11 @@ body {
   to { opacity: 1; }
 }
 
-@keyframes slideUp {
-  from { top: 100vh; }
-  to { top: calc(100vh - 30px); }
+/* slideUp removed — initial mid state set by JS on load */
+
+/* Pull-up tab — desktop: always hidden */
+.sheet-tab {
+  display: none;
 }
 
 /* Map-overlay browse buttons — desktop: hidden; mobile: float top-right */
@@ -1166,12 +1168,11 @@ body {
    =========================== */
 @media (max-width: 768px) {
 
-  /* Use top + bottom:0 so the sidebar always fills exactly the visible area.
-     Peek: top near 100vh so only the 56px handle peeks above the screen edge.
-     Mid: top at 30vh so ~70vh of content is visible. No explicit height needed. */
+  /* Sidebar fully off-screen by default; JS adds .mid on load.
+     top + bottom:0 means height = 100vh - top (always fills the visible area). */
   .sidebar {
     position: fixed;
-    top: calc(100vh - 30px);
+    top: 100vh;
     bottom: 0;
     left: 0;
     right: 0;
@@ -1182,10 +1183,9 @@ body {
     box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.5);
     z-index: 1000;
     transition: top 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* Mid — the MAXIMUM state (~70vh showing). No further expansion allowed. */
+  /* Mid — sidebar visible, ~90vh content showing */
   .sidebar.mid {
     top: 10vh;
   }
@@ -1231,9 +1231,41 @@ body {
     font-size: 10px;
   }
 
-  /* Keep zoom controls above the peek strip */
+  /* Pull-up tab: protrudes from the bottom edge when the sidebar is off-screen.
+     position:fixed + bottom:env(safe-area-inset-bottom) handles both cases:
+       - Safari with browser chrome: fixed bottom=0 sits above the chrome naturally
+       - Homescreen PWA: safe-area-inset-bottom pads above the home indicator */
+  .sheet-tab {
+    display: flex; /* shown/hidden via JS inline style; default shown */
+    align-items: center;
+    gap: 7px;
+    position: fixed;
+    bottom: env(safe-area-inset-bottom, 0px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999;
+    padding: 10px 22px 12px;
+    background: var(--bg-sidebar);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.45);
+    white-space: nowrap;
+    transition: background 0.15s ease;
+  }
+
+  .sheet-tab:active {
+    background: var(--bg-card);
+  }
+
+  /* Hide zoom buttons on mobile — users pinch to zoom */
   .leaflet-control-zoom {
-    margin-bottom: 72px !important;
+    display: none !important;
   }
 
   /* Hide the sidebar's browse action buttons — they live on the map on mobile */

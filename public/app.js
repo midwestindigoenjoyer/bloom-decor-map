@@ -125,6 +125,7 @@ const browseResultsContent = document.getElementById('browse-results-content');
 const browseClearBtn = document.getElementById('browse-clear-btn');
 const browseRefreshBtn = document.getElementById('browse-refresh-btn');
 const mapBrowseActionsEl = document.getElementById('map-browse-actions');
+const sheetTab = document.getElementById('sheet-tab');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 
 // Initialize
@@ -134,7 +135,16 @@ function init() {
   initMap();
   bindEvents();
   loadBrowseGrid();
-  requestGeolocation();
+
+  // On mobile, start with the sidebar visible (mid state) — no animation on load.
+  // Auto-geolocation removed; user can tap "Use my location" if desired.
+  if (window.innerWidth <= 768) {
+    sidebar.style.transition = 'none';
+    sidebar.classList.add('mid');
+    void sidebar.offsetHeight;   // flush so the class takes effect before re-enabling
+    sidebar.style.transition = '';
+    updateTabVisibility('mid');
+  }
 }
 
 // ===========================
@@ -226,6 +236,9 @@ function bindEvents() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
+
+  // Pull-up tab — shown when sidebar is off-screen
+  if (sheetTab) sheetTab.addEventListener('click', () => snapSheet('mid'));
 
   // Timeout modal
   document.getElementById('loading-retry-btn').addEventListener('click', () => {
@@ -342,12 +355,8 @@ function getSheetState() {
 function getSheetTargetTop(state) {
   const vh = window.innerHeight;
   if (state === 'mid') return vh * 0.10;
-  // Peek: show handle + sidebar-header (logo + tabs) so the cut lands right
-  // at the divider line below the tabs. Adapts to any screen size automatically.
-  const handle = document.getElementById('sheet-handle');
-  const header = document.getElementById('sidebar-header');
-  const peekH = (handle ? handle.offsetHeight : 22) + (header ? header.offsetHeight : 90);
-  return vh - peekH;
+  // Peek: fully off-screen. The #sheet-tab button is the only visible affordance.
+  return vh + 10;
 }
 
 // Only two states: peek ↔ mid (mid is the ceiling — no full-screen).
@@ -361,10 +370,22 @@ function applySheetState(state) {
 
 let snapTimeout = null;
 
+// Show the pull-up tab when the sidebar is off-screen, hide it when visible.
+// On peek→tab: delay matches the slide-off transition so it appears after the sidebar leaves.
+function updateTabVisibility(state) {
+  if (!sheetTab || window.innerWidth > 768) return;
+  if (state === 'mid') {
+    sheetTab.style.display = 'none';
+  } else {
+    setTimeout(() => { sheetTab.style.display = 'flex'; }, 360);
+  }
+}
+
 // Snap the sheet to a state, animating smoothly from the current position.
 function snapSheet(state) {
   if (window.innerWidth > 768) return;
   if (snapTimeout) { clearTimeout(snapTimeout); snapTimeout = null; }
+  updateTabVisibility(state);
   const targetTop = getSheetTargetTop(state);
   // Re-enable transition (may have been suppressed during drag)
   sidebar.style.transition = 'top 0.35s cubic-bezier(0.16, 1, 0.3, 1)';

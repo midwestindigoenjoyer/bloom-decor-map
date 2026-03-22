@@ -16,6 +16,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
+
+  <!-- PWA / Icon -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pikmin Decor">
+  <link rel="apple-touch-icon" href="icon.svg">
 </head>
 
 <body>
@@ -138,6 +147,13 @@
 
     <!-- Map Container -->
     <div id="map"></div>
+
+    <!-- Pull-up tab (mobile only) -->
+    <button id="sheet-tab" class="sheet-tab">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="18 15 12 9 6 15"></polyline>
+      </svg>
+    </button>
 
 
     <!-- Browse action buttons — float on the map on mobile, hidden on desktop -->
