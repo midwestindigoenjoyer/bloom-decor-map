@@ -102,6 +102,7 @@ let radiusCircle = null;
 let activeTab = 'search';
 let autocompleteTimer = null;
 let autocompleteController = null;  // AbortController for in-flight Nominatim requests
+let searchController = null;        // AbortController for the active search query
 const queryTracker = new Map(); // id -> { label, status: 'loading'|'success'|'error', controller, retryFn }
 let activeBrowseCategories = new Set();  // multi-select
 let browseResultsData = {};  // category -> results array
@@ -121,8 +122,9 @@ const resultsLocation = document.getElementById('results-location');
 const resultsCount = document.getElementById('results-count');
 const emptyState = document.getElementById('empty-state');
 const loading = document.getElementById('loading');
-const loadingTitle = document.getElementById('loading-title');
-const loadingQueryList = document.getElementById('loading-query-list');
+const browseLoading = document.getElementById('browse-loading');
+const browseLoadingTitle = document.getElementById('browse-loading-title');
+const browseLoadingQueryList = document.getElementById('browse-loading-query-list');
 const autocompleteList = document.getElementById('autocomplete-list');
 const browseGrid = document.getElementById('browse-grid');
 const browseResults = document.getElementById('browse-results');
@@ -247,7 +249,13 @@ function bindEvents() {
   // Pull-up tab — shown when sidebar is off-screen
   if (sheetTab) sheetTab.addEventListener('click', () => snapSheet('mid'));
 
-  // Query loader close button
+  // Search cancel button
+  document.getElementById('search-cancel-btn').addEventListener('click', () => {
+    searchController?.abort();
+    hideLoading();
+  });
+
+  // Browse query loader close button
   document.getElementById('loading-close-btn').addEventListener('click', closeQueryLoader);
 
   // Browse clear / refresh (sidebar on desktop, map overlay on mobile)
@@ -310,6 +318,7 @@ function bindEvents() {
 // Tab Switching
 // ===========================
 function switchTab(tab) {
+  if (isLoading || queryTracker.size > 0) return;
   activeTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -856,12 +865,11 @@ async function fetchDecor(lat, lon) {
   showSearchLoading();
   lastSearchLat = lat;
   lastSearchLon = lon;
-  const controller = new AbortController();
-  trackQuery('__search__', '📍 Searching location...', controller, () => fetchDecor(lat, lon));
+  searchController = new AbortController();
 
   try {
     const query = buildOverpassQuery(lat, lon, SEARCH_RADIUS);
-    const elements = await queryOverpass(query, 45000, controller.signal);
+    const elements = await queryOverpass(query, 45000, searchController.signal);
 
     const decorResults = [];
     const seen = new Set();
@@ -906,16 +914,15 @@ async function fetchDecor(lat, lon) {
       displayResults({ results: decorResults, total: decorResults.length });
       addDecorMarkers(decorResults);
     }
-    resolveQuery('__search__', true);
   } catch (error) {
-    if (error.name === 'AbortError') { hideLoading(); return; }
-    resolveQuery('__search__', false);
+    if (error.name === 'AbortError') return; // user cancelled
     if (error.isTimeout) {
       showError('Request timed out. Try zooming in for a smaller area.', () => fetchDecor(lat, lon));
     } else {
       showError(error.message || 'Failed to fetch decor.', () => fetchDecor(lat, lon));
     }
   } finally {
+    searchController = null;
     hideLoading();
   }
 }
@@ -1308,6 +1315,8 @@ function panToLocation(lat, lon) {
 
 function showLoading() {
   isLoading = true;
+  loading.classList.remove('hidden');
+  setTabsDisabled(true);
   map.dragging.disable();
   map.scrollWheelZoom.disable();
   map.doubleClickZoom.disable();
@@ -1321,6 +1330,8 @@ function showLoading() {
 
 function hideLoading() {
   isLoading = false;
+  loading.classList.add('hidden');
+  if (queryTracker.size === 0) setTabsDisabled(false);
   map.dragging.enable();
   map.scrollWheelZoom.enable();
   map.doubleClickZoom.enable();
@@ -1330,6 +1341,13 @@ function hideLoading() {
   locateBtn.disabled = false;
   document.getElementById('map-browse-refresh-btn').disabled = false;
   document.getElementById('map-browse-clear-btn').disabled = false;
+}
+
+function setTabsDisabled(disabled) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.disabled = disabled;
+    btn.classList.toggle('tab-disabled', disabled);
+  });
 }
 
 // ===========================
@@ -1349,7 +1367,7 @@ function resolveQuery(id, success) {
   q.controller = null;
   renderQueryLoader();
   if ([...queryTracker.values()].every(q => q.status === 'success')) {
-    setTimeout(() => { queryTracker.clear(); loading.classList.add('hidden'); }, 700);
+    setTimeout(() => { queryTracker.clear(); browseLoading.classList.add('hidden'); if (!isLoading) setTabsDisabled(false); }, 700);
   }
 }
 
@@ -1367,7 +1385,8 @@ function closeQueryLoader() {
   queryTracker.clear();
   setBrowseActionsVisible(activeBrowseCategories.size > 0);
   rebuildBrowseView();
-  loading.classList.add('hidden');
+  browseLoading.classList.add('hidden');
+  if (!isLoading) setTabsDisabled(false);
 }
 
 function retryTrackedQuery(id) {
@@ -1379,11 +1398,12 @@ function retryTrackedQuery(id) {
 
 function renderQueryLoader() {
   const entries = [...queryTracker.entries()];
-  if (entries.length === 0) { loading.classList.add('hidden'); return; }
-  loading.classList.remove('hidden');
+  if (entries.length === 0) { browseLoading.classList.add('hidden'); if (!isLoading) setTabsDisabled(false); return; }
+  browseLoading.classList.remove('hidden');
+  setTabsDisabled(true);
   const anyLoading = entries.some(([, q]) => q.status === 'loading');
-  loadingTitle.textContent = anyLoading ? 'Finding decor...' : 'Done!';
-  loadingQueryList.innerHTML = entries.map(([id, q]) => {
+  browseLoadingTitle.textContent = anyLoading ? 'Finding decor...' : 'Done!';
+  browseLoadingQueryList.innerHTML = entries.map(([id, q]) => {
     let statusHtml;
     if (q.status === 'loading') {
       statusHtml = '<div class="qtrack-spinner"></div>';

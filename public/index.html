@@ -171,17 +171,28 @@
       </button>
     </div>
 
-    <!-- Query Progress Loader -->
+    <!-- Search Loading Overlay -->
     <div id="loading" class="loading hidden">
-      <div class="loading-header">
-        <span id="loading-title" class="loading-title">Finding decor...</span>
+      <button id="search-cancel-btn" class="loading-close-btn" aria-label="Cancel search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+      <div class="loading-spinner"></div>
+      <span>Finding decor...</span>
+    </div>
+
+    <!-- Browse Query Progress Card -->
+    <div id="browse-loading" class="browse-loading hidden">
+      <div class="browse-loading-header">
+        <span id="browse-loading-title" class="browse-loading-title">Finding decor...</span>
         <button id="loading-close-btn" class="loading-close-btn" aria-label="Cancel">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <path d="M18 6 6 18M6 6l12 12"/>
           </svg>
         </button>
       </div>
-      <ul id="loading-query-list" class="loading-query-list"></ul>
+      <ul id="browse-loading-query-list" class="loading-query-list"></ul>
     </div>
   </div>
 

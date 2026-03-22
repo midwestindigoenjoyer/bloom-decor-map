@@ -176,6 +176,12 @@ body {
   box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
 }
 
+.tab-btn.tab-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* ===========================
    Tab Panels
    =========================== */
@@ -863,9 +869,54 @@ body {
 }
 
 /* ===========================
-   Multi-query Progress Loader
+   Search Loading Overlay
    =========================== */
 .loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  background: var(--bg-sidebar);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 36px 48px 32px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: all;
+  min-width: 200px;
+}
+
+.loading .loading-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.loading.hidden {
+  display: none;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ===========================
+   Browse Multi-query Progress Card
+   =========================== */
+.browse-loading {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -882,11 +933,11 @@ body {
   pointer-events: all;
 }
 
-.loading.hidden {
+.browse-loading.hidden {
   display: none;
 }
 
-.loading-header {
+.browse-loading-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -894,7 +945,7 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.loading-title {
+.browse-loading-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
@@ -1385,7 +1436,7 @@ body {
     color: white;
   }
 
-  .loading {
+  .browse-loading {
     top: auto;
     bottom: 80px;
     transform: translateX(-50%);
