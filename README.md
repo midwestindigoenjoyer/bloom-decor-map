@@ -42,7 +42,7 @@ DEBUG=true npm start
 
 Thank you to [pixlpirate's pikmin map](https://github.com/pixlpirate/pikmin-map) project for already sorting out how the game interprets OSM data. To avoid re-inventing the wheel, I referenced this data when mapping the decor to OSM tags.
 
-`decor-mappings.js` contains 34 decor categories, each mapping one or more OSM tag `key=value` pairs to a Pikmin Bloom decor type.
+`decor-mappings.js` contains 34 decor categories, each mapping one or more OSM tag.
 
 Example:
 ```js
@@ -58,7 +58,7 @@ Example:
   }
 ```
 
-A location matches the **Bakery** category if it has `shop=bakery` **or** `cuisine=pretzel`. One location can match multiple categories (double-decor), which the UI handles by showing multiple emoji on a single pin.
+A location matches the **Bakery** category if it has `shop=bakery` **or** `cuisine=pretzel`. One location can match multiple categories, which the UI handles by showing multiple types on a single (expanded) pin on the map. The sidebar also shows more detailed information about locations, including each decor type it satisfies.
 
 To add or adjust a category, edit the `DECOR_MAPPINGS` array. OSM tag reference: [taginfo.openstreetmap.org](https://taginfo.openstreetmap.org/)
 
@@ -68,4 +68,4 @@ To add or adjust a category, edit the `DECOR_MAPPINGS` array. OSM tag reference:
 
 - This tool uses **live OSM data**. Pikmin Bloom uses OSM data that may be years out of date, so results can differ from the game.
 - Pikmin Bloom also pulls from Foursquare, but this data is not accessible, and even if it were, it would be impossible to calibrate without being able to see the game's source code. Most of the game data seems to come from OSM anyway.
-- The game's detector range is **100 meters** (`DETECTOR_RANGE` in `decor-mappings.js`). The default search radius is wider (200m) so you can see what's nearby and plan your route.
+- The game's detector range is **100 meters** (`DETECTOR_RANGE` in `decor-mappings.js`).
