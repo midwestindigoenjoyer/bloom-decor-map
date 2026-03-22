@@ -1,5 +1,5 @@
 # Pikmin Decor Map
-
+ 
 An interactive map for  Pikmin Bloom decor locations.
 
 Queries OpenStreetMap data to show which decor types are available at a given location on the map.
