@@ -284,6 +284,20 @@ function bindEvents() {
     if (window.innerWidth <= 768 && getSheetState() === 'peek') snapSheet('mid');
   });
 
+  // Swipe up from the bottom edge of the screen to reveal the sidebar
+  document.addEventListener('touchstart', (e) => {
+    if (window.innerWidth > 768) return;
+    if (getSheetState() !== 'peek') return;
+    const startY = e.touches[0].clientY;
+    // Only activate when the touch starts within 80px of the bottom
+    if (startY < window.innerHeight - 80) return;
+    document.addEventListener('touchend', function onEnd(endEvt) {
+      document.removeEventListener('touchend', onEnd);
+      const dy = endEvt.changedTouches[0].clientY - startY;
+      if (dy < -30) snapSheet('mid');
+    }, { once: true });
+  }, { passive: true });
+
   // Keyboard
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
