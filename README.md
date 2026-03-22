@@ -15,45 +15,6 @@ Queries OpenStreetMap data to show which decor types are available at a given lo
 
 You can also pick a decor type first and see all matching locations in the current map viewport.
 
----
-
-## Project structure
-
-```
-pikmin/
-├── server.js              # Express entry point — wires routes and starts server
-├── decor-mappings.js      # Core data: OSM tag → Pikmin decor category definitions
-├── scrape-images.js       # One-time script to download decor images from pikminwiki.com
-│
-├── routes/
-│   ├── geocode.js         # /api/geocode and /api/autocomplete (Nominatim)
-│   └── decor.js           # /api/decor, /api/decor-browse, /api/categories (Overpass)
-│
-├── utils/
-│   ├── nominatim.js       # Nominatim API client with 1 req/sec rate limiting
-│   ├── overpass.js        # Overpass API client with automatic server fallback
-│   └── haversine.js       # Great-circle distance calculation (degrees → meters)
-│
-└── public/
-    ├── app.js             # Vanilla JS frontend (single HTML page client)
-    └── images/            # ~891 decor PNG sprites scraped from pikminwiki.com
-```
-
----
-
-## API endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/decor?lat=&lon=&radius=` | Find all decor types near a point (default radius: 200m) |
-| GET | `/api/decor-browse?south=&west=&north=&east=&category=` | All locations of one decor type in a bounding box |
-| GET | `/api/categories` | Full list of decor categories with icons and colors |
-| GET | `/api/geocode?address=` | Convert an address string to lat/lon (Nominatim) |
-| GET | `/api/autocomplete?q=` | Address autocomplete suggestions (min 3 chars) |
-| GET | `/api/health` | Health check — returns `{ status: "ok" }` |
-
----
-
 ## Getting started
 
 ### Prerequisites
@@ -79,22 +40,25 @@ DEBUG=true npm start
 
 ## Decor mappings
 
-`decor-mappings.js` is the heart of the project. It contains 34 decor categories, each mapping one or more OSM tag `key=value` pairs to a Pikmin Bloom decor type.
+Thank you to [pixlpirate's pikmin map](https://github.com/pixlpirate/pikmin-map) project for already sorting out how the game interprets OSM data. To avoid re-inventing the wheel, I referenced this data when mapping the decor to OSM tags.
+
+`decor-mappings.js` contains 34 decor categories, each mapping one or more OSM tag `key=value` pairs to a Pikmin Bloom decor type.
 
 Example:
 ```js
 {
-  name: 'Café',
-  icon: '☕',
-  color: '#8B4513',
-  tags: [
-    { key: 'amenity', value: 'cafe' },
-    { key: 'cuisine', value: 'coffee_shop' }
-  ]
-}
+    name: 'Bakery',
+    image: 'Decor Red Baguette.png',
+    mapIcon: 'MapIcon_Bakery.png',
+    color: '#D4A574',
+    tags: [
+      { key: 'shop', value: 'bakery' },
+      { key: 'cuisine', value: 'pretzel' }
+    ]
+  }
 ```
 
-A location matches the **Café** category if it has `amenity=cafe` **or** `cuisine=coffee_shop`. One location can match multiple categories (double-decor), which the UI handles by showing multiple emoji on a single pin.
+A location matches the **Bakery** category if it has `shop=bakery` **or** `cuisine=pretzel`. One location can match multiple categories (double-decor), which the UI handles by showing multiple emoji on a single pin.
 
 To add or adjust a category, edit the `DECOR_MAPPINGS` array. OSM tag reference: [taginfo.openstreetmap.org](https://taginfo.openstreetmap.org/)
 
